@@ -1,0 +1,163 @@
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+using MySql.Data.MySqlClient;
+using System.IO;
+
+namespace Day027_DB_업로드
+{
+public partial class Form1 : Form
+{
+public Form1()
+
+{
+InitializeComponent();
+}
+
+String connStr = "Server=192.168.56.103;Uid=win2653;Pwd=4321;Database=image_db;Charset=UTF8";
+MySqlConnection conn; // 교량
+MySqlCommand cmd; // 트럭
+String sql = ""; // 물건박스
+MySqlDataReader reader; // 트럭이 가져올 끈
+private void btn_select_t_Click(object sender, EventArgs e)
+{
+OpenFileDialog ofd = new OpenFileDialog();
+ofd.ShowDialog();
+string full_name = ofd.FileName;
+tb_fullFileName.Text = full_name;
+}
+
+private void Form1_Load(object sender, EventArgs e)
+{
+//<1> 데이터베이스 연결 (교량 건설) + <2> 트럭 준비
+conn = new MySqlConnection(connStr);
+conn.Open();
+cmd = new MySqlCommand("", conn);
+}
+private void Form1_FormClosed(object sender, FormClosedEventArgs e)
+{
+//<4> 데이터베이스 해제 (교량 철거)
+conn.Close();
+MessageBox.Show("잘가세요~ 도비는 자유에요~");
+}
+
+private void btn_업로드_Click(object sender, EventArgs e)
+{
+/*
+CREATE TABLE image (
+i_id INT NOT NULL PRIMARY KEY, -- 아이디. 랜덤하게 생성.
+i_fname VARCHAR(50) NOT NULL, -- 파일명
+i_extname VARCHAR(10) NOT NULL, -- 확장명
+i_fsize BIGINT NOT NULL, -- 파일 크기
+i_width INT NOT NULL, -- 이미지 폭
+i_height INT NOT NULL, -- 이미지 높이
+i_user VARCHAR(20) -- 이미지 업로드 유저
+);
+*/
+String full_name = tb_fullFileName.Text.ToString();
+// c:\\images\\pet_raw\\cat256_01.raw
+String[] tmp = full_name.Split('\\');
+String tmp1 = tmp[tmp.Length - 1]; // cat256_01.raw
+String[] tmp2 = tmp1.Split('.');
+String i_fname = tmp2[0]; // cat256_01
+String i_extname = tmp2[1]; // raw
+long i_fsize = new FileInfo(full_name).Length;
+int i_width = (int)Math.Sqrt(i_fsize);
+int i_height = i_width;
+String i_user = "Hong";
+Random rnd = new Random();
+int i_id = rnd.Next(int.MinValue, int.MaxValue);
+// 이미지 테이블(부모 테이블)에 Insert
+// <3> 물건을 준비해서, 트럭에 실어서 다리 건너 부어넣기.
+sql = "INSERT INTO image(i_id, i_fname, i_extname, i_fsize, i_width, ";
+sql += "i_height,i_user ) VALUES (";
+sql += i_id + ", '" + i_fname + "', '" + i_extname + "', " + i_fsize + ",";
+sql += i_width + "," + i_height + ",'" + i_user + "')";
+//textBox1.Text = sql;
+cmd.CommandText = sql; // 짐을 트럭에 싣기
+cmd.ExecuteNonQuery();
+// RAW 파일을 열어서 pixel 테이블에 Insert...
+/*
+CREATE TABLE pixel (
+i_id INT NOT NULL, -- 이미지 파일 아이디 (FK)
+p_row INT NOT NULL, -- 행 위치
+p_col INT NOT NULL, -- 열 위치
+p_value TINYINT UNSIGNED NOT NULL, -- 픽셀값
+FOREIGN KEY (i_id) REFERENCES image(i_id) 
+);
+*/
+int p_row, p_col, p_value;
+BinaryReader br = new BinaryReader(File.Open(full_name, FileMode.Open));
+cmd = new MySqlCommand("", conn);
+for (int i = 0; i < i_width; i++)
+for (int k = 0; k < i_height; k++)
+{
+p_row = i; p_col = k;
+p_value = (int)br.ReadByte();
+sql = "INSERT INTO pixel(i_id, p_row, p_col, p_value) VALUES(";
+sql += i_id + "," + p_row + "," + p_col + "," + p_value + ")";
+cmd.CommandText = sql; // 짐을 트럭에 싣기
+cmd.ExecuteNonQuery();
+}
+br.Close();
+MessageBox.Show(full_name + " 입력 완료!");
+}
+
+private void btn_dt_Click(object sender, EventArgs e)
+{
+// <3> 물건을 준비해서, 트럭에 실어서 다리 건너 부어넣기.
+sql = "SELECT i_id, i_fname, i_extname, i_width, i_height FROM image"; // 짐 싸기
+cmd.CommandText = sql; // 짐을 트럭에 싣기
+reader = cmd.ExecuteReader(); // 짐을 서버에 부어넣고, 끈으로 묶어서 끈만 가져옴.
+int i_id, i_width, i_height;
+String i_fname, i_extname; // 톡!하고 땡겨올 짐을 담을 변수.
+// 끈을 톡!하고 당기기
+String[] file_list = { };
+while (reader.Read())
+{
+i_id = (int)reader["i_id"];
+i_fname = (String)reader["i_fname"];
+i_extname = (String)reader["i_extname"];
+i_width = (int)reader["i_width"];
+i_height = (int)reader["i_width"];
+String str = i_id + "/" + i_fname + "." + i_extname;
+str += "/" + i_width + "x" + i_height;
+Array.Resize(ref file_list, file_list.Length + 1); // 배열크기 1개 증가.
+file_list[file_list.Length - 1] = str;
+}
+reader.Close();
+comboBox1.Items.AddRange(file_list);
+}
+
+private void comboBox1_SelectedIndexChanged(object sender, EventArgs e)
+{
+String selectStr = comboBox1.SelectedItem.ToString();
+int i_id = int.Parse(selectStr.Split('/')[0]);
+int i_width = int.Parse(selectStr.Split('/')[2].Split('x')[0]);
+int i_height = int.Parse(selectStr.Split('/')[2].Split('x')[1]);
+sql = "SELECT p_row, p_col, p_value FROM pixel WHERE i_id = " + i_id;
+cmd.CommandText = sql; // 짐을 트럭에 싣기
+reader = cmd.ExecuteReader(); // 짐을 서버에 부어넣고, 끈으로 묶어서 끈만 가져옴.
+Bitmap paper = new Bitmap(i_width, i_height);
+pictureBox1.Size = new Size(i_width, i_height);
+
+Color c;
+int r, g, b;
+int row, col;
+while (reader.Read()
+{
+row = int.Parse(reader["p_row"].ToString());
+col = int.Parse(reader["p_col"].ToString());
+r = g = b = int.Parse(reader["p_value"].ToString());
+c = Color.FromArgb(r, g, b);
+paper.SetPixel(col, row, c);
+}
+reader.Close();
+pictureBox1.Image = paper;
+}
