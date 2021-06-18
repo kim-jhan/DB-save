@@ -1,0 +1,957 @@
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+using MySql.Data.MySqlClient;
+using System.IO;
+
+namespace Day014_1_영상처리__Bata_4__GUI2
+{
+public partial class Form1 : Form
+{
+public static byte[,] dbImage;
+public static int return_i_id;
+int openValue; // 0 DB로 오픈 1 일반 오픈
+
+public Form1()
+{
+InitializeComponent();
+}
+
+//전역 함수부
+static byte[,] inImage, outImage;
+static int inH, inW, outH, outW;
+static string filename;
+static Bitmap paper; //그림을 찍을 종이
+String connStr = "Server=192.168.56.103;Uid=win2653;Pwd=4321;Database=image_db;Charset=UTF8";
+MySqlConnection conn; // 교량
+MySqlCommand cmd; // 트럭
+String sql = ""; // 물건박스
+MySqlDataReader reader; // 트럭이 가져올 끈
+bool mouseYN = false;
+int sx, sy, ex, ey;
+
+private void 열기ToolStripMenuItem_Click(object sender, EventArgs e)
+{
+openImage();
+}
+
+private void 저장ToolStripMenuItem_Click(object sender, EventArgs e)
+{
+SaveImage();
+}
+
+private void 동일영상ToolStripMenuItem_Click(object sender, EventArgs e)
+{
+equal_image();
+}
+
+private void 밝기ToolStripMenuItem_Click(object sender, EventArgs e)
+{
+bright_image();
+}
+
+private void 어둡기ToolStripMenuItem_Click(object sender, EventArgs e)
+{
+Del_Image();
+}
+
+private void 흑백이미지ToolStripMenuItem_Click(object sender, EventArgs e)
+{
+bw_image();
+}
+
+private void 반전이미지ToolStripMenuItem_Click(object sender, EventArgs e)
+{
+rev_Image();
+}
+
+private void 상하ToolStripMenuItem_Click(object sender, EventArgs e)
+{
+hbmirr_lmage();
+}
+
+private void 좌우ToolStripMenuItem_Click(object sender, EventArgs e)
+{
+lrmirr_Image();
+}
+
+private void 확대이미지ToolStripMenuItem_Click(object sender, EventArgs e)
+{
+zoom_in();
+}
+
+private void 축소이미지ToolStripMenuItem_Click(object sender, EventArgs e)
+{
+zoom_out();
+}
+
+private void 엠보싱ToolStripMenuItem_Click(object sender, EventArgs e)
+{
+emboss_image();
+}
+
+private void 블러링ToolStripMenuItem_Click(object sender, EventArgs e)
+{
+blurr_image();
+}
+
+private void 경계선ToolStripMenuItem_Click(object sender, EventArgs e)
+{
+edge_image();
+}
+
+private void 히스토그램스트래칭ToolStripMenuItem_Click(object sender, EventArgs e)
+{
+histo_stretch();
+}
+
+private void 앤드인ToolStripMenuItem_Click(object sender, EventArgs e)
+{
+end_in_search();
+}
+
+private void 히스토그램평활화ToolStripMenuItem_Click(object sender, EventArgs e)
+{
+histo_equal();
+}
+
+private void Form1_KeyDown(object sender, KeyEventArgs e)
+{
+if (e.Control)
+{
+switch (e.KeyCode)
+{
+case Keys.O:
+openImage(); break;
+}
+}
+if (e.Alt)
+{
+switch (e.KeyCode)
+{
+case Keys.E:
+emboss_image(); break;
+}
+}
+}
+private void pictureBox1_MouseDown(object sender, MouseEventArgs e)
+{
+if (!mouseYN)
+return;
+sx = e.X; sy = e.Y;
+}
+
+private void pictureBox1_MouseUp(object sender, MouseEventArgs e)
+{
+if (!mouseYN)
+return;
+ex = e.X; ey = e.Y;
+if (sx > ex)
+{
+int tmp = sx; sx = ex; ex = tmp;
+}
+if (sy > ey)
+{
+int tmp = sy; sy = ey; ey = tmp;
+}
+}
+
+void openImage()
+{
+OpenFileDialog ofd = new OpenFileDialog(); // 객체 생성
+ofd.ShowDialog();
+filename = ofd.FileName;
+BinaryReader br = new BinaryReader(File.Open(filename, FileMode.Open));
+
+// 파일 크기 알아내기 (?)
+long fsize = new FileInfo(filename).Length;
+// 중요! 입력이미지의 높이, 폭 알아내기
+inH = inW = (int)Math.Sqrt(fsize);
+inImage = new byte[inH, inW]; // 메모리 할당
+for (int i = 0; i < inH; i++)
+for (int k = 0; k < inW; k++)
+inImage[i, k] = br.ReadByte();
+br.Close();
+
+equal_image();
+}
+
+void displayImage()
+{
+// 벽, 종이, 게시판 크기 조절
+paper = new Bitmap(outH, outW); // 종이
+pictureBox1.Size = new Size(outH, outW); // 캔버스
+this.Size = new Size(outH + 20, outW + 80); // 벽
+Color pen; //펜
+for (int i = 0; i < outH; i++)
+for (int k = 0; k < outW; k++)
+{
+byte data = outImage[i, k]; // 잉크
+pen = Color.FromArgb(data, data, data);
+paper.SetPixel(k, i, pen);
+}
+pictureBox1.Image = paper; // 게시판에 종이를 붙이기 
+toolStripButton1.Text =
+outH.ToString() + 'x' + outW.ToString() + " " + filename;
+}
+
+/////영상 처리 함수부
+void equal_image()
+{
+if (inImage == null)
+return;
+// 중요! 출력이미지의 높이, 폭을 결정 --> 알고리즘에 영향
+outH = inH; outW = inW;
+outImage = new byte[outH, outW];
+// *** 진짜 영상처리 알고리즘을 구현 ***
+for (int i = 0; i < inH; i++)
+for (int k = 0; k < inW; k++)
+{
+outImage[i, k] = inImage[i, k];
+}
+displayImage();
+}
+
+double getValue()
+{
+subForm1 sub = new subForm1(); // 서브폼 준비
+if (sub.ShowDialog() == DialogResult.Cancel)
+return 0;
+double value = (int)sub.numericUpDown1.Value;
+return value;
+}
+void SaveImage()
+{
+SaveFileDialog sfd = new SaveFileDialog();
+sfd.DefaultExt = "raw";
+sfd.Filter = "로우 이미지(*.raw) | *.raw";
+if (sfd.ShowDialog() == DialogResult.OK)
+{
+string saveFname = sfd.FileName;
+BinaryWriter bw = new BinaryWriter(File.Open(saveFname, FileMode.Create));
+for (int i = 0; i < outH; i++)
+for (int k = 0; k < outW; k++)
+bw.Write(outImage[i, k]);
+bw.Close();
+}
+}
+void bright_image()
+{
+if (inImage == null)
+return;
+int value = (int)getValue();
+
+// 중요! 출력이미지의 높이, 폭을 결정 --> 알고리즘에 영향
+outH = inH; outW = inW;
+outImage = new byte[outH, outW];
+
+// *** 진짜 영상처리 알고리즘을 구현 ***
+for (int i = 0; i < inH; i++)
+for (int k = 0; k < inW; k++)
+{
+outImage[i, k] = (byte)(inImage[i, k] + value);
+}
+displayImage();
+}
+
+void Del_Image() // 어둡게
+{
+int value = (int)getValue();
+for (int i = 0; i < inH; i++)
+{
+for (int k = 0; k < inW; k++)
+{
+if ((inImage[i, k] - value) < 0)
+outImage[i, k] = 0;
+else
+outImage[i, k] = inImage[i, k];
+}
+}
+displayImage();
+}
+void bw_image()
+{
+if (inImage == null)
+return;
+int value = (int)getValue();
+
+// 중요! 출력이미지의 높이, 폭을 결정 --> 알고리즘에 영향
+outH = inH; outW = inW;
+outImage = new byte[outH, outW];
+
+// *** 진짜 영상처리 알고리즘을 구현 ***
+for (int i = 0; i < inH; i++)
+for (int k = 0; k < inW; k++)
+{
+if (inImage[i, k] > value)
+outImage[i, k] = 255;
+else
+outImage[i, k] = 0;
+}
+displayImage();
+
+}
+
+void rev_Image() //반전
+{
+
+// int value = (int)getValue();
+//for (int i = 0; i < inH; i++)
+// for (int k = 0; k < inW; k++)
+// {
+// outImage[i, k] = (byte)(value - inImage[i, k]);
+// }
+//displayImage();
+if (inImage == null)
+return;
+
+// 중요! 출력이미지의 높이, 폭을 결정 --> 알고리즘에 영향
+outH = inH; outW = inW;
+outImage = new byte[outH, outW];
+
+if (!mouseYN)
+{
+sx = 0; ex = inH;
+sy = 0; ey = inW;
+}
+
+// *** 진짜 영상처리 알고리즘을 구현 ***
+for (int i = 0; i < inH; i++)
+for (int k = 0; k < inW; k++)
+{
+
+if ((sx <= k && k <= ex) && (sy <= i && i <= ey))
+outImage[i, k] = (byte)(255 - inImage[i, k]);
+else
+outImage[i, k] = inImage[i, k];
+}
+displayImage();
+}
+
+private void 반전마우스ToolStripMenuItem_Click(object sender, EventArgs e)
+{
+mouseYN = true;
+}
+
+void lrmirr_Image()// 좌우
+{
+for (int i = 0; i < inH; i++)
+for (int k = 0; k < inW; k++)
+{
+outImage[i, k] = inImage[i, (outW - 1 - k)];
+}
+displayImage();
+}
+
+void hbmirr_lmage() //상하
+{
+for (int i = 0; i < inH; i++)
+for (int k = 0; k < inW; k++)
+{
+outImage[i, k] = inImage[(inW - 1 - i), k];
+}
+displayImage();
+}
+
+void zoom_in() //확대 알고리즘
+{
+Console.WriteLine("확대 배율-->");
+int scale = (int)getValue();
+// 중요! 출력이미지의 높이, 폭을 결정 --> 알고리즘에 영향
+outH = inH * scale;
+outW = inW * scale;
+outImage = new byte[outH, outW];
+// *** 진짜 영상처리 알고리즘을 구현 ***
+for (int i = 0; i < outH; i++)
+for (int k = 0; k < outW; k++)
+{
+outImage[i, k] = inImage[(i / scale), (k / scale)];
+}
+displayImage();
+}
+
+void zoom_out() // 축소 알고리즘
+{
+
+Console.WriteLine("축소 배율-->");
+int scale = (int)getValue();
+// 중요! 출력이미지의 높이, 폭을 결정 --> 알고리즘에 영향
+outH = inH / scale;
+outW = inW / scale;
+outImage = new byte[outH, outW];
+// *** 진짜 영상처리 알고리즘을 구현 ***
+for (int i = 0; i < inH; i++)
+{
+for (int k = 0; k < inW; k++)
+{
+outImage[(i / scale), (k / scale)] = inImage[i, k];
+}
+}
+displayImage();
+}
+
+private void 파일불러오기ToolStripMenuItem_Click(object sender, EventArgs e)
+{
+openValue = 0;
+Formfilefullname odb = new Formfilefullname();
+odb.ShowDialog();
+inW = dbImage.GetLength(0);
+inH = dbImage.GetLength(1);
+inImage = new byte[inH, inW]; // 메모리 할당
+for (int i = 0; i < inH; i++)
+{
+for (int j = 0; j < inW; j++)
+{
+inImage[i, j] = dbImage[i, j];
+}
+}
+equal_image();
+}
+
+private void 저장ToolStripMenuItem1_Click(object sender, EventArgs e)
+{
+// c:\\images\\pet_raw\\cat256_01.raw
+String i_fname = "", i_extname = "";
+long i_fsize = 0;
+int i_width = 0, i_height = 0;
+if (openValue == 1)
+{
+String[] tmp = filename.Split('\\');
+String tmp1 = tmp[tmp.Length - 1]; // cat256_01.raw
+String[] tmp2 = tmp1.Split('.');
+i_fname = tmp2[0]; //cat256_01
+i_extname = tmp2[1]; //raw
+i_fsize = new FileInfo(filename).Length;
+i_width = (int)Math.Sqrt(i_fsize);
+i_height = i_width;
+}
+else
+{
+sql = "SELECT i_fname, i_extname, i_fsize, i_width, i_height FROM image WHERE i_id = " + return_i_id; // 짐 싸기
+cmd.CommandText = sql; // 짐을 트럭에 싣기
+reader = cmd.ExecuteReader(); // 짐을 서버에 부어넣고, 끈으로 묶어서 끈만 가져옴.
+while (reader.Read())
+{
+i_fname = (String)reader["i_fname"];
+i_extname = (String)reader["i_extname"];
+i_fsize = (long)reader["i_fsize"];
+i_width = (int)reader["i_width"];
+i_height = (int)reader["i_height"];
+}
+reader.Close();
+}
+String i_user = "Hong";
+Random rnd = new Random();
+int i_id = rnd.Next(0, int.MaxValue);
+// 이미지 테이블(부모 테이블)에 INSERT
+sql = "INSERT INTO image(i_id, i_fname, i_extname, i_fsize, i_width, i_height, i_user) VALUES (";
+sql += i_id + ", '" + i_fname + "', '" + i_extname + "', " + i_fsize + ", ";
+sql += i_width + ", " + i_height + ", '" + i_user + "')";
+cmd = new MySqlCommand("", conn);
+cmd.CommandText = sql; // 짐을 트럭에 싣기
+cmd.ExecuteNonQuery();
+//RAW 파일을 열어서 pixel 테이블에 INSERT
+int p_row, p_col, p_value;
+cmd = new MySqlCommand("", conn);
+for (int i = 0; i < i_width; i++)
+{
+for (int k = 0; k < i_height; k++)
+{
+p_row = i;
+p_col = k;
+p_value = (int)outImage[i, k];
+sql = "INSERT INTO pixel(i_id, p_row, p_col, p_value) VALUES(";
+sql += i_id + ", " + p_row + ", " + p_col + ", " + p_value + ")";
+cmd.CommandText = sql;
+cmd.ExecuteNonQuery();
+}
+}
+MessageBox.Show(filename + "입력 완료");
+}
+
+void emboss_image()
+{
+if (inImage == null)
+return;
+// 중요! 출력이미지의 높이, 폭을 결정 --> 알고리즘에 영향
+outH = inH; outW = inW;
+outImage = new byte[outH, outW];
+// 화소영역 처리
+// 중요! 마스크 결정
+const int MSIZE = 3;
+double[,] mask = { { -1.0, 0.0, 0.0 },
+                         { 0.0, 0.0, 0.0 },
+                         { 0.0, 0.0, 1.0 } };
+// 임시 입력, 출력 메모리 할당
+double[,] tmpInput = new double[inH + 2, inW + 2];
+double[,] tmpOutput = new double[outH, outW];
+// 임시 입력을 중간값인 127로 초기화
+for (int i = 0; i < inH + 2; i++)
+for (int k = 0; k < inW + 2; k++)
+tmpInput[i, k] = 127.0;
+// 입력 --> 임시 입력
+for (int i = 0; i < inH; i++)
+for (int k = 0; k < inW; k++)
+tmpInput[i + 1, k + 1] = inImage[i, k];
+// *** 진짜 영상처리 알고리즘을 구현 ***
+double S = 0.0;
+for (int i = 0; i < inH; i++)
+{
+for (int k = 0; k < inW; k++)
+{
+for (int m = 0; m < MSIZE; m++)
+for (int n = 0; n < MSIZE; n++)
+S += tmpInput[i + m, k + m] * mask[m, n];
+tmpOutput[i, k] = S;
+S = 0.0;
+}
+}
+// 후처리 : Mask의 합이 0이면 127을 더하기.
+for (int i = 0; i < outH; i++)
+for (int k = 0; k < outW; k++)
+tmpOutput[i, k] += 127.0;
+// 임시 출력 --> 원래 출력
+for (int i = 0; i < outH; i++)
+for (int k = 0; k < outW; k++)
+{
+double d = tmpOutput[i, k];
+if (d > 255.0)
+d = 255.0;
+else if (d < 0.0)
+d = 0.0;
+outImage[i, k] = (byte)d;
+}
+displayImage();
+}
+
+void blurr_image()
+{
+if (inImage == null)
+return;
+// 중요! 출력이미지의 높이, 폭을 결정 --> 알고리즘에 영향
+outH = inH; outW = inW;
+outImage = new byte[outH, outW];
+// 화소영역 처리
+// 중요! 마스크 결정
+const int MSIZE = 3;
+double[,] mask = { { 1/9.0, 1/9.0, 1/9.0 },
+                         { 1/9.0, 1/9.0, 1/9.0 },
+                         { 1/9.0, 1/9.0, 1/9.0 } };
+// 임시 입력, 출력 메모리 할당
+double[,] tmpInput = new double[inH + 2, inW + 2];
+double[,] tmpOutput = new double[outH, outW];
+// 임시 입력을 중간값인 127로 초기화
+for (int i = 0; i < inH + 2; i++)
+for (int k = 0; k < inW + 2; k++)
+tmpInput[i, k] = 127.0;
+// 입력 --> 임시 입력
+for (int i = 0; i < inH; i++)
+for (int k = 0; k < inW; k++)
+tmpInput[i + 1, k + 1] = inImage[i, k];
+// *** 진짜 영상처리 알고리즘을 구현 ***
+double S = 0.0;
+for (int i = 0; i < inH; i++)
+{
+for (int k = 0; k < inW; k++)
+{
+for (int m = 0; m < MSIZE; m++)
+for (int n = 0; n < MSIZE; n++)
+S += tmpInput[i + m, k + n] * mask[m, n];
+tmpOutput[i, k] = S;
+S = 0.0;
+}
+}
+// 후처리 : Mask의 합이 0이면 127을 더하기.
+//for (int i = 0; i < outH; i++)
+// for (int k = 0; k < outW; k++)
+// tmpOutput[i, k] += 127.0;
+// 임시 출력 --> 원래 출력
+for (int i = 0; i < outH; i++)
+for (int k = 0; k < outW; k++)
+{
+double d = tmpOutput[i, k];
+if (d > 255.0)
+d = 255.0;
+else if (d < 0.0)
+d = 0.0;
+outImage[i, k] = (byte)d;
+}
+displayImage();
+}
+
+void edge_image()
+{
+if (inImage == null)
+return;
+// 중요! 출력이미지의 높이, 폭을 결정 --> 알고리즘에 영향
+outH = inH; outW = inW;
+outImage = new byte[outH, outW];
+// 화소영역 처리
+// 중요! 마스크 결정
+const int MSIZE = 3;
+double[,] mask = { { 0.0, -1.0, 0.0 },
+                          { 0.0, 1.0, 0.0 },
+                         { 0.0, 0.0, 0.0 } };
+// 임시 입력, 출력 메모리 할당
+double[,] tmpInput = new double[inH + 2, inW + 2];
+double[,] tmpOutput = new double[outH, outW];
+// 임시 입력을 중간값인 127로 초기화
+for (int i = 0; i < inH + 2; i++)
+for (int k = 0; k < inW + 2; k++)
+tmpInput[i, k] = 127.0;
+// 입력 --> 임시 입력
+for (int i = 0; i < inH; i++)
+for (int k = 0; k < inW; k++)
+tmpInput[i + 1, k + 1] = inImage[i, k];
+// *** 진짜 영상처리 알고리즘을 구현 ***
+double S = 0.0;
+for (int i = 0; i < inH; i++)
+{
+for (int k = 0; k < inW; k++)
+{
+for (int m = 0; m < MSIZE; m++)
+for (int n = 0; n < MSIZE; n++)
+S += tmpInput[i + m, k + n] * mask[m, n];
+tmpOutput[i, k] = S;
+S = 0.0;
+}
+}
+// 후처리 : Mask의 합이 0이면 127을 더하기.
+//for (int i = 0; i < outH; i++)
+// for (int k = 0; k < outW; k++)
+// tmpOutput[i, k] += 127.0;
+// 임시 출력 --> 원래 출력
+for (int i = 0; i < outH; i++)
+for (int k = 0; k < outW; k++)
+{
+double d = tmpOutput[i, k];
+if (d > 255.0)
+d = 255.0;
+else if (d < 0.0)
+d = 0.0;
+outImage[i, k] = (byte)d;
+}
+displayImage();
+}
+
+void histo_stretch() // 히스토그램 스트래칭
+{
+if (inImage == null)
+return;
+// 중요! 출력이미지의 높이, 폭을 결정 --> 알고리즘에 영향
+outH = inH; outW = inW;
+outImage = new byte[outH, outW];
+// 수식 :
+// Out = (In - min) / (max - min) * 255.0
+byte min_val = inImage[0, 0], max_val = inImage[0, 0];
+for (int i = 0; i < inH; i++)
+for (int k = 0; k < inW; k++)
+{
+if (min_val > inImage[i, k])
+min_val = inImage[i, k];
+if (max_val < inImage[i, k])
+max_val = inImage[i, k];
+}
+// *** 진짜 영상처리 알고리즘을 구현 ***
+for (int i = 0; i < inH; i++)
+for (int k = 0; k < inW; k++)
+{
+// Out = (In - min) / (max - min) * 255.0
+outImage[i, k] = (byte)
+((double)(inImage[i, k] - min_val) / (max_val - min_val) * 255.0);
+}
+displayImage();
+}
+
+void end_in_search() // 앤드인 탐색
+{
+if (inImage == null)
+return;
+// 중요! 출력이미지의 높이, 폭을 결정 --> 알고리즘에 영향
+outH = inH; outW = inW;
+outImage = new byte[outH, outW];
+// 수식 :
+// Out = (In - min) / (max - min) * 255.0
+byte min_val = inImage[0, 0], max_val = inImage[0, 0];
+for (int i = 0; i < inH; i++)
+for (int k = 0; k < inW; k++)
+{
+if (min_val > inImage[i, k])
+min_val = inImage[i, k];
+if (max_val < inImage[i, k])
+max_val = inImage[i, k];
+}
+// min, max 값을 강제 변경
+min_val += 50;
+min_val -= 50;
+// *** 진짜 영상처리 알고리즘을 구현 ***
+for (int i = 0; i < inH; i++)
+for (int k = 0; k < inW; k++)
+{
+// Out = (In - min) / (max - min) * 255.0
+double value =
+((double)(inImage[i, k] - min_val) / (max_val - min_val) * 255.0);
+if (value > 255)
+value = 255;
+else if
+(value < 0)
+value = 0;
+outImage[i, k] = (byte)value;
+}
+displayImage();
+}
+
+void histo_equal() // 히스토그램 평활화
+{
+if (inImage == null)
+return;
+// 중요! 출력이미지의 높이, 폭을 결정 --> 알고리즘에 영향
+outH = inH; outW = inW;
+outImage = new byte[outH, outW];
+
+//1.히스토그램 생성
+int[] histo = new int[256];
+for (int i = 0; i < inH; i++)
+for (int k = 0; k < inW; k++)
+histo[inImage[i, k]]++;
+
+//2.누적 히스토그램
+int[] sumHisto = new int[256];
+int sum_val = 0;
+for (int i = 0; i < 256; i++)
+{
+sum_val += histo[i];
+sumHisto[i] = sum_val;
+}
+
+//3.정규화된 누적 히스토그램
+//n=(누적합/(행*열)) * 255.0
+double[] normalHisto = new double[256];
+for (int i = 0; i < 256; i++)
+{
+normalHisto[i] = (Double)sumHisto[i] / (inH * inW) * 255.0;
+}
+
+/// *** 진짜 영상처리 알고리즘을 구현 ***
+for (int i = 0; i < inH; i++)
+for (int k = 0; k < inW; k++)
+{
+outImage[i, k] = (byte)normalHisto[inImage[i, k]];
+}
+displayImage();
+}
+}
+}
+DB 불러오기 폼 및 저장
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+using MySql.Data.MySqlClient;
+using System.IO;
+
+namespace Day014_1_영상처리__Bata_4__GUI2
+{
+public partial class Formfilefullname : Form
+{
+String connStr = "Server=192.168.56.103;Uid=win2653;Pwd=4321;Database=image_db;Charset=UTF8";
+MySqlConnection conn; // 교량
+MySqlCommand cmd; // 트럭
+String sql = ""; // 물건박스
+MySqlDataReader reader; // 트럭이 가져올 끈
+private static object text;
+
+public Formfilefullname()
+{
+InitializeComponent();
+}
+
+private void Formfilefullname_Load(object sender, EventArgs e)
+{
+conn = new MySqlConnection(connStr);
+conn.Open();
+cmd = new MySqlCommand("", conn);
+sql = "SELECT i_id, i_fname, i_extname, i_width, i_height FROM image"; // 짐 싸기
+cmd.CommandText = sql; // 짐을 트럭에 싣기
+reader = cmd.ExecuteReader(); // 짐을 서버에 부어넣고, 끈으로 묶어서 끈만 가져옴.
+int i_id, i_width, i_height;
+String i_fname, i_extname; // 톡!하고 땡겨올 짐을 담을 변수.
+String[] file_list = { };
+
+// 끈을 톡!하고 당기기
+while (reader.Read())
+{
+i_id = (int)reader["i_id"];
+i_fname = (String)reader["i_fname"];
+i_extname = (String)reader["i_extname"];
+i_width = (int)reader["i_width"];
+i_height = (int)reader["i_height"];
+String str = i_id + "/" + i_fname + "." + i_extname + "/" + i_width + "x" + i_height;
+Array.Resize(ref file_list, file_list.Length + 1); //배열크기 한개 증가
+file_list[file_list.Length - 1] = str;
+}
+reader.Close();
+comboBox1.Items.Clear();
+comboBox1.Items.AddRange(file_list);
+}
+
+private void Formfilefullname_FormClosed(object sender, FormClosedEventArgs e)
+{
+conn.Close();
+}
+
+private void comboBox1_SelectedIndexChanged(object sender, EventArgs e)
+{
+String selectStr = comboBox1.SelectedItem.ToString();
+int i_id = int.Parse(selectStr.Split('/')[0]);
+Form1.return_i_id = i_id;
+int i_width = int.Parse(selectStr.Split('/')[2].Split('x')[0]);
+int i_height = int.Parse(selectStr.Split('/')[2].Split('x')[1]);
+sql = "SELECT p_row, p_col, p_value FROM pixel WHERE i_id = " + i_id; // 짐 싸기
+cmd.CommandText = sql; // 짐을 트럭에 싣기
+reader = cmd.ExecuteReader(); // 짐을 서버에 부어넣고, 끈으로 묶어서 끈만 가져옴.
+int row, col;
+Form1.dbImage = new byte[i_width, i_height];
+while (reader.Read())
+{
+row = int.Parse(reader["p_row"].ToString());
+col = int.Parse(reader["p_col"].ToString());
+Form1.dbImage[row, col] = (byte)(int.Parse(reader["p_value"].ToString()));
+}
+reader.Close();
+this.Close();
+}
+
+private void button3_Click(object sender, EventArgs e)
+{
+// <3> 물건을 준비해서, 트럭에 실어서 다리 건너 부어넣기.
+sql = "SELECT i_id, i_fname, i_extname, i_width, i_height FROM image"; // 짐 싸기
+cmd.CommandText = sql; // 짐을 트럭에 싣기
+reader = cmd.ExecuteReader(); // 짐을 서버에 부어넣고, 끈으로 묶어서 끈만 가져옴.
+int i_id, i_width, i_height;
+String i_fname, i_extname; // 톡!하고 땡겨올 짐을 담을 변수.
+
+// 끈을 톡!하고 당기기
+String[] file_list = { };
+while (reader.Read())
+{
+i_id = (int)reader["i_id"];
+i_fname = (String)reader["i_fname"];
+i_extname = (String)reader["i_extname"];
+i_width = (int)reader["i_width"];
+i_height = (int)reader["i_width"];
+String str = i_id + "/" + i_fname + "." + i_extname;
+str += "/" + i_width + "x" + i_height;
+Array.Resize(ref file_list, file_list.Length + 1); // 배열크기 1개 증가.
+file_list[file_list.Length - 1] = str;
+}
+reader.Close();
+comboBox1.Items.AddRange(file_list);
+}
+
+private void button1_Click_1(object sender, EventArgs e)
+{
+/*
+CREATE TABLE image (
+i_id INT NOT NULL PRIMARY KEY, -- 아이디. 랜덤하게 생성.
+i_fname VARCHAR(50) NOT NULL, -- 파일명
+i_extname VARCHAR(10) NOT NULL, -- 확장명
+i_fsize BIGINT NOT NULL, -- 파일 크기
+i_width INT NOT NULL, -- 이미지 폭
+i_height INT NOT NULL, -- 이미지 높이
+i_user VARCHAR(20) -- 이미지 업로드 유저
+);
+*/
+String full_name = Formfilefullname.text.ToString();
+// c:\\images\\pet_raw\\cat256_01.raw
+String[] tmp = full_name.Split('\\');
+String tmp1 = tmp[tmp.Length - 1]; // cat256_01.raw
+String[] tmp2 = tmp1.Split('.');
+String i_fname = tmp2[0]; // cat256_01
+String i_extname = tmp2[1]; // raw
+long i_fsize = new FileInfo(full_name).Length;
+int i_width = (int)Math.Sqrt(i_fsize);
+int i_height = i_width;
+String i_user = "Hong";
+Random rnd = new Random();
+int i_id = rnd.Next(int.MinValue, int.MaxValue);
+// 이미지 테이블(부모 테이블)에 Insert
+// <3> 물건을 준비해서, 트럭에 실어서 다리 건너 부어넣기.
+sql = "INSERT INTO image(i_id, i_fname, i_extname, i_fsize, i_width, ";
+sql += "i_height,i_user ) VALUES (";
+sql += i_id + ", '" + i_fname + "', '" + i_extname + "', " + i_fsize + ",";
+sql += i_width + "," + i_height + ",'" + i_user + "')";
+
+//textBox1.Text = sql;
+cmd.CommandText = sql; // 짐을 트럭에 싣기
+cmd.ExecuteNonQuery();
+
+// RAW 파일을 열어서 pixel 테이블에 Insert...
+/*
+CREATE TABLE pixel (
+i_id INT NOT NULL, -- 이미지 파일 아이디 (FK)
+p_row INT NOT NULL, -- 행 위치
+p_col INT NOT NULL, -- 열 위치
+p_value TINYINT UNSIGNED NOT NULL, -- 픽셀값
+FOREIGN KEY (i_id) REFERENCES image(i_id) 
+);
+
+*/
+int p_row, p_col, p_value;
+BinaryReader br = new BinaryReader(File.Open(full_name, FileMode.Open));
+cmd = new MySqlCommand("", conn);
+for (int i = 0; i < i_width; i++)
+for (int k = 0; k < i_height; k++)
+{
+p_row = i; p_col = k;
+p_value = (int)br.ReadByte();
+sql = "INSERT INTO pixel(i_id, p_row, p_col, p_value) VALUES(";
+sql += i_id + "," + p_row + "," + p_col + "," + p_value + ")";
+cmd.CommandText = sql; // 짐을 트럭에 싣기
+cmd.ExecuteNonQuery();
+}
+br.Close();
+MessageBox.Show(full_name + " 입력 완료!");
+}
+
+사진 밝기 대입 폼
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+
+namespace Day014_1_영상처리__Bata_4__GUI2
+{
+public partial class subForm1 : Form
+{
+
+public subForm1()
+{
+InitializeComponent();
+}
+
+private void button1_Click(object sender, EventArgs e)
+{
+this.DialogResult = DialogResult.OK;
+}
+
+private void button2_Click(object sender, EventArgs e)
+{
+this.DialogResult = DialogResult.Cancel;
+}
